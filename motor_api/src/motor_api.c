@@ -128,6 +128,25 @@ static uint64_t monotonic_ns(void) {
 }
 
 /*
+ * 函数: strncasestr
+ * 功能: 在限定长度的缓冲区中进行不区分大小写的子串查找。
+ */
+static const char *strncasestr(const char *hay, size_t hay_len, const char *needle) {
+    size_t nlen = strlen(needle);
+    if (nlen == 0 || hay_len < nlen) return NULL;
+    for (size_t i = 0; i + nlen <= hay_len; ++i) {
+        size_t j = 0;
+        for (; j < nlen; ++j) {
+            char a = (char)tolower((unsigned char)hay[i + j]);
+            char b = (char)tolower((unsigned char)needle[j]);
+            if (a != b) break;
+        }
+        if (j == nlen) return hay + i;
+    }
+    return NULL;
+}
+
+/*
  * 函数: set_cmd_locked
  * 功能: 在互斥保护下更新运行命令，限制参数合法范围。
  */
@@ -290,20 +309,54 @@ EXTERNFUNC ma_status_t motor_api_read_eni(const char *eni_path,
     fseek(fp, 0, SEEK_END); long len = ftell(fp); fseek(fp, 0, SEEK_SET);
     char *buf = (char *)malloc((size_t)len + 1); if (!buf) { fclose(fp); return MA_ERR_RUNTIME; }
     size_t rd = fread(buf, 1, (size_t)len, fp); fclose(fp); buf[rd] = '\0';
-    uint16_t count = 0; const char *p = buf;
-    while (count < max_slaves) {
-        const char *sl = strstr(p, "<Slave"); if (!sl) break;
-        const char *end = strchr(sl, '>'); if (!end) break;
-        const char *vend = strstr(sl, "VendorId"); const char *prod = strstr(sl, "ProductCode"); const char *pos = strstr(sl, "Position");
-        uint32_t v = 0, pc = 0; uint16_t ps = count;
-        if (vend) { const char *eq = strchr(vend, '='); if (eq) { while (*++eq==' '||*eq=='"'){} char *e=NULL; v = (uint32_t)strtoul(eq, &e, 0); }}
-        if (prod) { const char *eq = strchr(prod, '='); if (eq) { while (*++eq==' '||*eq=='"'){} char *e=NULL; pc = (uint32_t)strtoul(eq, &e, 0); }}
-        if (pos) { const char *eq = strchr(pos, '='); if (eq) { while (*++eq==' '||*eq=='"'){} char *e=NULL; unsigned long pv = strtoul(eq, &e, 0); ps = (uint16_t)pv; }}
-        if (vendor_ids) vendor_ids[count] = v;
-        if (product_codes) product_codes[count] = pc;
-        if (positions) positions[count] = ps;
-        count++;
-        p = end + 1;
+    uint16_t count = 0;
+    /* 首选：ENI 的 <SlaveList>/<Slave> 结构 */
+    {
+        const char *list_beg = strncasestr(buf, rd, "<SlaveList");
+        const char *list_end = list_beg ? strncasestr(list_beg, (size_t)(rd - (list_beg - buf)), "</SlaveList>") : NULL;
+        const char *scan_beg = list_beg ? list_beg : NULL;
+        const char *scan_end = list_end ? list_end : NULL;
+        if (scan_beg && scan_end) {
+            const char *p = scan_beg;
+            while (p < scan_end && count < max_slaves) {
+                const char *sl = strncasestr(p, (size_t)(scan_end - p), "<Slave"); if (!sl) break;
+                const char *tag_end = strchr(sl, '>'); if (!tag_end || tag_end > scan_end) break;
+                const char *blk_end = strncasestr(tag_end, (size_t)(scan_end - tag_end), "</Slave>"); if (!blk_end) blk_end = tag_end;
+                uint16_t ps = 0xFFFF; uint32_t v = 0, pc = 0;
+                const char *attr_beg = sl, *attr_end = tag_end;
+                const char *pos_attr = strncasestr(attr_beg, (size_t)(attr_end - attr_beg), "Position");
+                const char *vend_attr = strncasestr(attr_beg, (size_t)(attr_end - attr_beg), "VendorId"); if (!vend_attr) vend_attr = strncasestr(attr_beg, (size_t)(attr_end - attr_beg), "VendorID");
+                const char *prod_attr = strncasestr(attr_beg, (size_t)(attr_end - attr_beg), "ProductCode");
+                if (pos_attr) { const char *eq = strchr(pos_attr, '='); if (eq && eq < attr_end) { const char *vv = eq + 1; while (*vv==' '||*vv=='"') ++vv; char *e=NULL; unsigned long pv = strtoul(vv, &e, 0); ps = (uint16_t)pv; }}
+                if (vend_attr) { const char *eq = strchr(vend_attr, '='); if (eq && eq < attr_end) { const char *vv = eq + 1; while (*vv==' '||*vv=='"') ++vv; v = (uint32_t)strtoul(vv, NULL, 0); }}
+                if (prod_attr) { const char *eq = strchr(prod_attr, '='); if (eq && eq < attr_end) { const char *vv = eq + 1; while (*vv==' '||*vv=='"') ++vv; pc = (uint32_t)strtoul(vv, NULL, 0); }}
+                if (ps == 0xFFFF) ps = count;
+                if (positions) positions[count] = ps;
+                if (vendor_ids) vendor_ids[count] = v ? v : 0x000116c7;
+                if (product_codes) product_codes[count] = pc ? pc : 0x003e0402;
+                count++;
+                p = blk_end + 8;
+            }
+        }
+    }
+    /* 备选：ESI/EtherCATInfoList 的 <EtherCATInfo> 结构，按设备描述计数 */
+    if (count == 0) {
+        const char *p = buf; size_t remaining = rd; uint16_t idx = 0;
+        while (idx < max_slaves) {
+            const char *info = strncasestr(p, remaining, "<EtherCATInfo>"); if (!info) break;
+            const char *end = strncasestr(info, (size_t)(rd - (info - buf)), "</EtherCATInfo>"); if (!end) end = buf + rd;
+            uint32_t v = 0, pc = 0; uint16_t ps = idx;
+            const char *vend = strncasestr(info, (size_t)(end - info), "<Id>");
+            if (vend) { const char *gt = strchr(vend, '>'); const char *lt = gt ? strchr(gt+1, '<') : NULL; if (gt && lt && lt > gt) { char num[32]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; v = (uint32_t)strtoul(num, NULL, 10); } }
+            const char *type = strncasestr(info, (size_t)(end - info), "ProductCode");
+            if (type) { const char *eq = strchr(type, '='); if (eq && eq < end) { const char *vv = eq + 1; while (*vv==' '||*vv=='"'||*vv=='#') ++vv; if (*vv=='x' || *vv=='X') ++vv; pc = (uint32_t)strtoul(vv, NULL, 16); } }
+            if (positions) positions[idx] = ps;
+            if (vendor_ids) vendor_ids[idx] = v ? v : 0x000116c7;
+            if (product_codes) product_codes[idx] = pc ? pc : 0x003e0402;
+            idx++;
+            p = end + 15; remaining = rd - (size_t)(p - buf);
+        }
+        count = idx;
     }
     free(buf);
     *out_count = count;
@@ -326,8 +379,17 @@ EXTERNFUNC ma_status_t motor_api_create(const char *eni_path,
     h->domain = ecrt_master_create_domain(h->master); if (!h->domain) { ecrt_release_master(h->master); free(h); return MA_ERR_INIT; }
 
     uint16_t cnt = 0; uint32_t vids[MA_MAX_SLAVES] = {0}, prods[MA_MAX_SLAVES] = {0}; uint16_t poss[MA_MAX_SLAVES] = {0};
-    if (eni_path) (void)motor_api_read_eni(eni_path, vids, prods, poss, MA_MAX_SLAVES, &cnt);
-    if (cnt == 0) { cnt = 3; vids[0] = vids[1] = vids[2] = 0x000116c7; prods[0] = prods[1] = prods[2] = 0x003e0402; poss[0] = 0; poss[1] = 1; poss[2] = 2; }
+    if (eni_path) {
+        ma_status_t rc = motor_api_read_eni(eni_path, vids, prods, poss, MA_MAX_SLAVES, &cnt);
+        if (rc != MA_OK || cnt == 0) {
+            fprintf(stderr, "[ERROR] ENI parse failed or zero slaves: path=%s rc=%d cnt=%u\n", eni_path, rc, cnt);
+            ecrt_release_master(h->master); free(h); return MA_ERR_CONFIG;
+        }
+        printf("[INFO] ENI parsed slaves=%u\n", cnt);
+    } else {
+        cnt = 3; vids[0] = vids[1] = vids[2] = 0x000116c7; prods[0] = prods[1] = prods[2] = 0x003e0402; poss[0] = 0; poss[1] = 1; poss[2] = 2;
+        printf("[WARN] No ENI provided, using default 3 slaves\n");
+    }
     h->slave_count = cnt; for (uint16_t i=0;i<cnt;i++){ h->vendor_id[i]=vids[i]; h->product_code[i]=prods[i]; h->position[i]=poss[i]; }
 
     /* 循环配置从站，注意 ecrt_master_slave_config 参数顺序：alias=0, position, vendor_id, product_code */
@@ -464,7 +526,7 @@ EXTERNFUNC ma_status_t motor_api_run_once(struct motor_api_handle *handle) {
     /* 逐轴推进状态机与写入控制字/模式 */
     for (uint16_t i = 0; i < h->slave_count; ++i) {
         uint16_t status_i = EC_READ_U16(h->domain_pd + h->in[i].statusword);
-        if ((status_i & 0x6F) == 0x27) h->seen_enabled[i] = true;
+        if ((status_i & 0x6F) == 0x27) h->seen_enabled[i] = true; else h->seen_enabled[i] = false;
         uint16_t control_i = 0x06;
         if (!h->servo_enabled[i]) {
             /* 依据 CiA-402 标准用状态字低位掩码推进控制字序列 */
@@ -555,7 +617,7 @@ EXTERNFUNC ma_status_t motor_api_run_once(struct motor_api_handle *handle) {
                         EC_WRITE_U16(h->domain_pd + h->out[i].controlWord, 0x0F);
                         EC_WRITE_S8(h->domain_pd + h->out[i].workModeOut, (int8_t)MA_MODE_CSP);
                     }
-                    printf("[BARRIER_FIRE] synchronized motion start after 1s (enabled)\n");
+                    printf("[BARRIER_FIRE] synchronized motion start after 1s (enabled), slaves=%u\n", h->slave_count);
                     h->motion_started = 1; h->barrier_armed = 0;
                 }
             }

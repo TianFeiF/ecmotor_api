@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/ethercat_example.dir/main.cpp.o -o ethercat_example   -L/usr/local/etherlab/lib  -Wl,-rpath,/usr/local/etherlab/lib:/usr/local/lib /usr/local/lib/libethercat.so 

@@ -1,0 +1,354 @@
+<?xml version="1.0" ?>
+<EtherCATInfoList>
+  <EtherCATInfo>
+    <!-- Slave 0 -->
+    <Vendor>
+      <Id>71367</Id>
+    </Vendor>
+    <Descriptions>
+      <Devices>
+        <Device>
+          <Type ProductCode="#x003e0402" RevisionNo="#x00000001">HCFA X3E Servo Driver</Type>
+          <Name><![CDATA[HCFA X3E Servo Driver]]></Name>
+          <Sm Enable="1" StartAddress="#x1000" ControlByte="#x26" DefaultSize="128" />
+          <Sm Enable="1" StartAddress="#x1400" ControlByte="#x22" DefaultSize="128" />
+          <Sm Enable="1" StartAddress="#x1800" ControlByte="#x64" DefaultSize="9" />
+          <Sm Enable="1" StartAddress="#x1c00" ControlByte="#x20" DefaultSize="25" />
+          <RxPdo Sm="2" Fixed="1" Mandatory="1">
+            <Index>#x1600</Index>
+            <Name>1st RxPDO-Mapping</Name>
+            <Entry>
+              <Index>#x6040</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Control Word</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6060</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>8</BitLen>
+              <Name>Modes of operation </Name>
+              <DataType>UINT8</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x607a</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Target position</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60b8</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Touch Probe Function</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+          </RxPdo>
+          <TxPdo Sm="3" Fixed="1" Mandatory="1">
+            <Index>#x1a00</Index>
+            <Name>1st TxPDO-Mapping</Name>
+            <Entry>
+              <Index>#x603f</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Error Code</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6041</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Status Word</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6064</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Position actual value</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6061</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>8</BitLen>
+              <Name>Modes of operation display </Name>
+              <DataType>UINT8</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60b9</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Touch Probe Status</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60ba</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Touch Probe1 Pos1 Pos Value</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60f4</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Following error actual value</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60fd</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Digital inputs</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x213f</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Servo Error Code</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+          </TxPdo>
+        </Device>
+      </Devices>
+    </Descriptions>
+  </EtherCATInfo>
+  <EtherCATInfo>
+    <!-- Slave 1 -->
+    <Vendor>
+      <Id>71367</Id>
+    </Vendor>
+    <Descriptions>
+      <Devices>
+        <Device>
+          <Type ProductCode="#x003e0402" RevisionNo="#x00000001">HCFA X3E Servo Driver</Type>
+          <Name><![CDATA[HCFA X3E Servo Driver]]></Name>
+          <Sm Enable="1" StartAddress="#x1000" ControlByte="#x26" DefaultSize="128" />
+          <Sm Enable="1" StartAddress="#x1400" ControlByte="#x22" DefaultSize="128" />
+          <Sm Enable="1" StartAddress="#x1800" ControlByte="#x64" DefaultSize="9" />
+          <Sm Enable="1" StartAddress="#x1c00" ControlByte="#x20" DefaultSize="25" />
+          <RxPdo Sm="2" Fixed="1" Mandatory="1">
+            <Index>#x1600</Index>
+            <Name>1st RxPDO-Mapping</Name>
+            <Entry>
+              <Index>#x6040</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Control Word</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6060</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>8</BitLen>
+              <Name>Modes of operation </Name>
+              <DataType>UINT8</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x607a</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Target position</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60b8</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Touch Probe Function</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+          </RxPdo>
+          <TxPdo Sm="3" Fixed="1" Mandatory="1">
+            <Index>#x1a00</Index>
+            <Name>1st TxPDO-Mapping</Name>
+            <Entry>
+              <Index>#x603f</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Error Code</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6041</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Status Word</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6064</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Position actual value</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6061</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>8</BitLen>
+              <Name>Modes of operation display </Name>
+              <DataType>UINT8</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60b9</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Touch Probe Status</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60ba</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Touch Probe1 Pos1 Pos Value</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60f4</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Following error actual value</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60fd</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Digital inputs</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x213f</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Servo Error Code</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+          </TxPdo>
+        </Device>
+      </Devices>
+    </Descriptions>
+  </EtherCATInfo>
+  <EtherCATInfo>
+    <!-- Slave 2 -->
+    <Vendor>
+      <Id>71367</Id>
+    </Vendor>
+    <Descriptions>
+      <Devices>
+        <Device>
+          <Type ProductCode="#x003e0402" RevisionNo="#x00000001">HCFA X3E Servo Driver</Type>
+          <Name><![CDATA[HCFA X3E Servo Driver]]></Name>
+          <Sm Enable="1" StartAddress="#x1000" ControlByte="#x26" DefaultSize="128" />
+          <Sm Enable="1" StartAddress="#x1400" ControlByte="#x22" DefaultSize="128" />
+          <Sm Enable="1" StartAddress="#x1800" ControlByte="#x64" DefaultSize="9" />
+          <Sm Enable="1" StartAddress="#x1c00" ControlByte="#x20" DefaultSize="25" />
+          <RxPdo Sm="2" Fixed="1" Mandatory="1">
+            <Index>#x1600</Index>
+            <Name>1st RxPDO-Mapping</Name>
+            <Entry>
+              <Index>#x6040</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Control Word</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6060</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>8</BitLen>
+              <Name>Modes of operation </Name>
+              <DataType>UINT8</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x607a</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Target position</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60b8</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Touch Probe Function</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+          </RxPdo>
+          <TxPdo Sm="3" Fixed="1" Mandatory="1">
+            <Index>#x1a00</Index>
+            <Name>1st TxPDO-Mapping</Name>
+            <Entry>
+              <Index>#x603f</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Error Code</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6041</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Status Word</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6064</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Position actual value</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x6061</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>8</BitLen>
+              <Name>Modes of operation display </Name>
+              <DataType>UINT8</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60b9</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Touch Probe Status</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60ba</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Touch Probe1 Pos1 Pos Value</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60f4</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Following error actual value</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x60fd</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>32</BitLen>
+              <Name>Digital inputs</Name>
+              <DataType>UINT32</DataType>
+            </Entry>
+            <Entry>
+              <Index>#x213f</Index>
+              <SubIndex>0</SubIndex>
+              <BitLen>16</BitLen>
+              <Name>Servo Error Code</Name>
+              <DataType>UINT16</DataType>
+            </Entry>
+          </TxPdo>
+        </Device>
+      </Devices>
+    </Descriptions>
+  </EtherCATInfo>
+</EtherCATInfoList>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EtherCATInfo>
+  <Descriptions>
+    <Devices>
+      <Device>
+        <Type ProductCode="#x00001388" RevisionNo="#x00000001">EYOU Servo Module</Type>
+        <Name>EYOU Servo Module</Name>
+        <VendorId>0x00000732</VendorId>
+        <ProductCode>0x00001388</ProductCode>
+        <RevisionNo>0x00000001</RevisionNo>
+        <SerialNo>0x00000000</SerialNo>
+        <DcSyncMode>1</DcSyncMode>
+      </Device>
+    </Devices>
+  </Descriptions>
+</EtherCATInfo>

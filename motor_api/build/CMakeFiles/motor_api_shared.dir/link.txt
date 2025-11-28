@@ -1,0 +1,1 @@
+/usr/bin/cc -fPIC -shared -Wl,-soname,libmotor_api.so -o libmotor_api.so CMakeFiles/motor_api_shared.dir/src/motor_api.c.o  -lethercat -lpthread 

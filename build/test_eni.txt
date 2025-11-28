@@ -1,0 +1,15 @@
+=== Master 0, Slave 0 ===
+Device name: EYOU Servo Module
+Vendor Id: 0x00000732
+Product code: 0x00001388
+Revision number: 0x00000001
+Serial number: 0x00000000
+Distributed clocks: yes
+
+=== Master 0, Slave 1 ===
+Device name: EYOU Servo Module
+Vendor Id: 0x00000732
+Product code: 0x00001388
+Revision number: 0x00000001
+Serial number: 0x00000000
+Distributed clocks: yes

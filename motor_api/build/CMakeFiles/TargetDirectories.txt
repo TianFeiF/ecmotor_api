@@ -1,0 +1,9 @@
+/home/phi/ecmotor_api/motor_api/build/CMakeFiles/motor_api_static.dir
+/home/phi/ecmotor_api/motor_api/build/CMakeFiles/motor_api_shared.dir
+/home/phi/ecmotor_api/motor_api/build/CMakeFiles/example_csp.dir
+/home/phi/ecmotor_api/motor_api/build/CMakeFiles/edit_cache.dir
+/home/phi/ecmotor_api/motor_api/build/CMakeFiles/rebuild_cache.dir
+/home/phi/ecmotor_api/motor_api/build/CMakeFiles/list_install_components.dir
+/home/phi/ecmotor_api/motor_api/build/CMakeFiles/install.dir
+/home/phi/ecmotor_api/motor_api/build/CMakeFiles/install/local.dir
+/home/phi/ecmotor_api/motor_api/build/CMakeFiles/install/strip.dir

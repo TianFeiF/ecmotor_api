@@ -1,0 +1,3 @@
+/home/phi/test/ethLab_test/build/CMakeFiles/ethercat_example.dir
+/home/phi/test/ethLab_test/build/CMakeFiles/edit_cache.dir
+/home/phi/test/ethLab_test/build/CMakeFiles/rebuild_cache.dir

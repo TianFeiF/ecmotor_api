@@ -1,0 +1,16 @@
+{
+  "C_Cpp.intelliSenseEngine": "Disabled",
+  "clangd.arguments": [
+    "--background-index",
+    "--clang-tidy",
+    "--fallback-style=LLVM"
+  ],
+  "clangd.path": "/usr/bin/clangd",
+  "files.associations": {
+    "*.hpp": "cpp",
+    "*.h": "c"
+  },
+  "cmake.sourceDirectory": "${workspaceFolder}",
+  "cmake.buildDirectory": "${workspaceFolder}/build",
+  "cmake.generator": "Unix Makefiles"
+}

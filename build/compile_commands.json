@@ -1,0 +1,82 @@
+[
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test.dir/test.cpp.o -c /home/phi/ecmotor_api/test.cpp",
+  "file": "/home/phi/ecmotor_api/test.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test.dir/src/motor_api.cpp.o -c /home/phi/ecmotor_api/src/motor_api.cpp",
+  "file": "/home/phi/ecmotor_api/src/motor_api.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test.dir/src/motor_adapter.cpp.o -c /home/phi/ecmotor_api/src/motor_adapter.cpp",
+  "file": "/home/phi/ecmotor_api/src/motor_adapter.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test.dir/src/vendor_adapters.cpp.o -c /home/phi/ecmotor_api/src/vendor_adapters.cpp",
+  "file": "/home/phi/ecmotor_api/src/vendor_adapters.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_eni.dir/test_eni.cpp.o -c /home/phi/ecmotor_api/test_eni.cpp",
+  "file": "/home/phi/ecmotor_api/test_eni.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_eni.dir/src/motor_api.cpp.o -c /home/phi/ecmotor_api/src/motor_api.cpp",
+  "file": "/home/phi/ecmotor_api/src/motor_api.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_eni.dir/src/motor_adapter.cpp.o -c /home/phi/ecmotor_api/src/motor_adapter.cpp",
+  "file": "/home/phi/ecmotor_api/src/motor_adapter.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_eni.dir/src/vendor_adapters.cpp.o -c /home/phi/ecmotor_api/src/vendor_adapters.cpp",
+  "file": "/home/phi/ecmotor_api/src/vendor_adapters.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_path_playback.dir/test_path_playback.cpp.o -c /home/phi/ecmotor_api/test_path_playback.cpp",
+  "file": "/home/phi/ecmotor_api/test_path_playback.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_path_playback.dir/src/motor_api.cpp.o -c /home/phi/ecmotor_api/src/motor_api.cpp",
+  "file": "/home/phi/ecmotor_api/src/motor_api.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_path_playback.dir/src/motor_adapter.cpp.o -c /home/phi/ecmotor_api/src/motor_adapter.cpp",
+  "file": "/home/phi/ecmotor_api/src/motor_adapter.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_path_playback.dir/src/vendor_adapters.cpp.o -c /home/phi/ecmotor_api/src/vendor_adapters.cpp",
+  "file": "/home/phi/ecmotor_api/src/vendor_adapters.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_debug.dir/test_debug.cpp.o -c /home/phi/ecmotor_api/test_debug.cpp",
+  "file": "/home/phi/ecmotor_api/test_debug.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_debug.dir/src/motor_api.cpp.o -c /home/phi/ecmotor_api/src/motor_api.cpp",
+  "file": "/home/phi/ecmotor_api/src/motor_api.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_debug.dir/src/motor_adapter.cpp.o -c /home/phi/ecmotor_api/src/motor_adapter.cpp",
+  "file": "/home/phi/ecmotor_api/src/motor_adapter.cpp"
+},
+{
+  "directory": "/home/phi/ecmotor_api/build",
+  "command": "/usr/bin/c++  -I/home/phi/ecmotor_api/include -I/usr/local/etherlab/include -std=gnu++11 -o CMakeFiles/test_debug.dir/src/vendor_adapters.cpp.o -c /home/phi/ecmotor_api/src/vendor_adapters.cpp",
+  "file": "/home/phi/ecmotor_api/src/vendor_adapters.cpp"
+}
+]

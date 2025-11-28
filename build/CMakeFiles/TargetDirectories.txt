@@ -1,0 +1,7 @@
+/home/phi/ecmotor_api/build/CMakeFiles/test.dir
+/home/phi/ecmotor_api/build/CMakeFiles/test_eni.dir
+/home/phi/ecmotor_api/build/CMakeFiles/test_path_playback.dir
+/home/phi/ecmotor_api/build/CMakeFiles/test_debug.dir
+/home/phi/ecmotor_api/build/CMakeFiles/copy_compile_commands.dir
+/home/phi/ecmotor_api/build/CMakeFiles/edit_cache.dir
+/home/phi/ecmotor_api/build/CMakeFiles/rebuild_cache.dir

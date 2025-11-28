@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/example_csp.dir/examples/example_csp.c.o -o example_csp  libmotor_api_static.a -lethercat -lpthread 

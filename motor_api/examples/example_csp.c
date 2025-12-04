@@ -25,6 +25,8 @@ int main(int argc, char **argv) {
     struct motor_api_handle *h = NULL; uint16_t slaves = 0;
     if (motor_api_create(eni, 4000, &slaves, &h) != MA_OK || !h) { fprintf(stderr, "motor_api_create failed\n"); return 1; }
     printf("motor_api created, slaves=%u, eni=%s\n", slaves, eni);
+    /* 已在创建流程打印了每个从站的PDO映射，这里仅提示 */
+    printf("[INFO] PDO list printed above based on ENI parsing.\n");
     /* 固定500步长，正向运行 */
     motor_api_set_command(h, true, 1, 500);
     signal(SIGINT, sig_handler); signal(SIGTERM, sig_handler);

@@ -73,6 +73,29 @@ typedef enum {
  */
 struct motor_api_handle;
 
+/* ENI 解析结构（用于动态 PDO 注册） */
+typedef struct {
+    uint16_t index;
+    uint8_t subindex;
+    uint8_t bitlen;
+} ma_eni_pdo_entry_t;
+
+typedef struct {
+    uint16_t pdo_index;
+    unsigned int entry_count;
+    ma_eni_pdo_entry_t *entries;
+} ma_eni_pdo_t;
+
+typedef struct {
+    uint32_t vendor_id;
+    uint32_t product_code;
+    uint16_t position;
+    unsigned int rx_pdo_count;
+    ma_eni_pdo_t *rx_pdos;
+    unsigned int tx_pdo_count;
+    ma_eni_pdo_t *tx_pdos;
+} ma_eni_slave_t;
+
 /*
  * 函数: motor_api_create
  * 功能: 初始化 EtherCAT 主站与域，读取 ENI 并配置从站、PDO 映射、DC 同步；创建库句柄。
@@ -182,7 +205,10 @@ EXTERNFUNC ma_status_t motor_api_read_eni(const char *eni_path,
                                           uint32_t *product_codes,
                                           uint16_t *positions,
                                           uint16_t max_slaves,
-                                          uint16_t *out_count);
+                                          uint16_t *out_count,
+                                          ma_eni_slave_t **out_slaves);
+
+EXTERNFUNC void motor_api_free_eni_slaves(ma_eni_slave_t *slaves, uint16_t count);
 
 /*
  * 函数: motor_api_format_diag_json

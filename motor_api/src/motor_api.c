@@ -146,6 +146,26 @@ static const char *strncasestr(const char *hay, size_t hay_len, const char *need
     return NULL;
 }
 
+/* 统一十六进制/十进制解析（支持 #x...、0x...、x... 以及纯数字） */
+static inline int parse_hex_or_dec(const char *s) {
+    const char *p = s;
+    while (*p == ' ' || *p == '"') ++p;
+    if (*p == '#') { ++p; if (*p == 'x' || *p == 'X') ++p; return (int)strtol(p, NULL, 16); }
+    if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) return (int)strtol(p + 2, NULL, 16);
+    if (p[0] == 'x' || p[0] == 'X') return (int)strtol(p + 1, NULL, 16);
+    return (int)strtol(p, NULL, 0);
+}
+
+static int parse_attr_int_range(const char *beg, const char *end, const char *key) {
+    if (!beg || !end || !key) return -1;
+    const char *k = strncasestr(beg, (size_t)(end - beg), key); if (!k || k >= end) return -1;
+    const char *eq = strchr(k, '='); if (!eq || eq >= end) return -1;
+    const char *v = eq + 1; while (v < end && (*v == ' ' || *v == '"')) ++v;
+    const char *stop = v; while (stop < end && *stop != ' ' && *stop != '>' && *stop != '"' && *stop != '/') ++stop;
+    char bufv[64]; size_t n = (size_t)(stop - v); if (n > sizeof(bufv) - 1) n = sizeof(bufv) - 1; memcpy(bufv, v, n); bufv[n] = '\0';
+    return parse_hex_or_dec(bufv);
+}
+
 /*
  * 函数: set_cmd_locked
  * 功能: 在互斥保护下更新运行命令，限制参数合法范围。
@@ -298,69 +318,207 @@ static void check_slave_states(motor_api_handle_t *h) {
  * 函数: motor_api_read_eni
  * 功能: 简易 ENI 解析，容错提取常见从站属性。
  */
+/* 删除重复定义，保持唯一的解析函数 */
+
 EXTERNFUNC ma_status_t motor_api_read_eni(const char *eni_path,
                                           uint32_t *vendor_ids,
                                           uint32_t *product_codes,
                                           uint16_t *positions,
                                           uint16_t max_slaves,
-                                          uint16_t *out_count) {
+                                          uint16_t *out_count,
+                                          ma_eni_slave_t **out_slaves) {
     if (!eni_path || !out_count) return MA_ERR_PARAM;
     FILE *fp = fopen(eni_path, "rb"); if (!fp) return MA_ERR_IO;
     fseek(fp, 0, SEEK_END); long len = ftell(fp); fseek(fp, 0, SEEK_SET);
     char *buf = (char *)malloc((size_t)len + 1); if (!buf) { fclose(fp); return MA_ERR_RUNTIME; }
     size_t rd = fread(buf, 1, (size_t)len, fp); fclose(fp); buf[rd] = '\0';
-    uint16_t count = 0;
-    /* 首选：ENI 的 <SlaveList>/<Slave> 结构 */
+
+    uint16_t count = 0; ma_eni_slave_t *slaves = NULL;
+
+    const char *p = buf; size_t remaining = rd;
+
+    /* 解析 <SlaveList>/<Slave> 布局及其内的 Rx/TxPdo/CoePdo */
     {
         const char *list_beg = strncasestr(buf, rd, "<SlaveList");
         const char *list_end = list_beg ? strncasestr(list_beg, (size_t)(rd - (list_beg - buf)), "</SlaveList>") : NULL;
-        const char *scan_beg = list_beg ? list_beg : NULL;
-        const char *scan_end = list_end ? list_end : NULL;
-        if (scan_beg && scan_end) {
-            const char *p = scan_beg;
-            while (p < scan_end && count < max_slaves) {
-                const char *sl = strncasestr(p, (size_t)(scan_end - p), "<Slave"); if (!sl) break;
-                const char *tag_end = strchr(sl, '>'); if (!tag_end || tag_end > scan_end) break;
-                const char *blk_end = strncasestr(tag_end, (size_t)(scan_end - tag_end), "</Slave>"); if (!blk_end) blk_end = tag_end;
-                uint16_t ps = 0xFFFF; uint32_t v = 0, pc = 0;
-                const char *attr_beg = sl, *attr_end = tag_end;
-                const char *pos_attr = strncasestr(attr_beg, (size_t)(attr_end - attr_beg), "Position");
-                const char *vend_attr = strncasestr(attr_beg, (size_t)(attr_end - attr_beg), "VendorId"); if (!vend_attr) vend_attr = strncasestr(attr_beg, (size_t)(attr_end - attr_beg), "VendorID");
-                const char *prod_attr = strncasestr(attr_beg, (size_t)(attr_end - attr_beg), "ProductCode");
-                if (pos_attr) { const char *eq = strchr(pos_attr, '='); if (eq && eq < attr_end) { const char *vv = eq + 1; while (*vv==' '||*vv=='"') ++vv; char *e=NULL; unsigned long pv = strtoul(vv, &e, 0); ps = (uint16_t)pv; }}
-                if (vend_attr) { const char *eq = strchr(vend_attr, '='); if (eq && eq < attr_end) { const char *vv = eq + 1; while (*vv==' '||*vv=='"') ++vv; v = (uint32_t)strtoul(vv, NULL, 0); }}
-                if (prod_attr) { const char *eq = strchr(prod_attr, '='); if (eq && eq < attr_end) { const char *vv = eq + 1; while (*vv==' '||*vv=='"') ++vv; pc = (uint32_t)strtoul(vv, NULL, 0); }}
-                if (ps == 0xFFFF) ps = count;
+        if (list_beg && list_end) {
+            const char *sp = list_beg;
+            while (count < max_slaves) {
+                const char *sbeg = strncasestr(sp, (size_t)(list_end - sp), "<Slave"); if (!sbeg) break;
+                const char *stag_end = strchr(sbeg, '>'); if (!stag_end || stag_end > list_end) break;
+                const char *send = strncasestr(stag_end, (size_t)(list_end - stag_end), "</Slave>"); if (!send) send = stag_end;
+                uint16_t ps = (uint16_t)(count);
+                uint32_t v = 0, pc = 0;
+                int pv = parse_attr_int_range(sbeg, stag_end, "Position"); if (pv >= 0) ps = (uint16_t)pv;
+                int vv = parse_attr_int_range(sbeg, stag_end, "VendorId"); if (vv < 0) vv = parse_attr_int_range(sbeg, stag_end, "VendorID"); if (vv >= 0) v = (uint32_t)vv;
+                int pp = parse_attr_int_range(sbeg, stag_end, "ProductCode"); if (pp >= 0) pc = (uint32_t)pp;
+
+                ma_eni_pdo_t *rx_pdos = NULL; unsigned int rx_cnt = 0;
+                ma_eni_pdo_t *tx_pdos = NULL; unsigned int tx_cnt = 0;
+
+                const char *blk = stag_end;
+                const char *scan = blk;
+                while (scan < send) {
+                    const char *rx = strncasestr(scan, (size_t)(send - scan), "<RxPdo");
+                    const char *tx = strncasestr(scan, (size_t)(send - scan), "<TxPdo");
+                    const char *pdo = strncasestr(scan, (size_t)(send - scan), "<Pdo");
+                    const char *begp = NULL; int kind = -1; /* 0=rx 1=tx 2=generic */
+                    if (rx && (!tx || rx < tx) && (!pdo || rx < pdo)) { begp = rx; kind = 0; }
+                    else if (tx && (!rx || tx < rx) && (!pdo || tx < pdo)) { begp = tx; kind = 1; }
+                    else if (pdo) { begp = pdo; kind = 2; }
+                    else break;
+                    const char *endp = NULL;
+                    if (kind == 0) endp = strncasestr(begp, (size_t)(send - begp), "</RxPdo>");
+                    else if (kind == 1) endp = strncasestr(begp, (size_t)(send - begp), "</TxPdo>");
+                    else endp = strncasestr(begp, (size_t)(send - begp), "</Pdo>");
+                    if (!endp) break;
+                    int pdo_index = 0;
+                    {
+                        const char *idx_tag = strncasestr(begp, (size_t)(endp - begp), "<Index>");
+                        if (idx_tag) { const char *gt = strchr(idx_tag, '>'); const char *lt = gt ? strncasestr(gt+1, (size_t)(endp - (gt+1)), "</Index>") : NULL; if (gt && lt && lt > gt) { char num[64]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; pdo_index = parse_hex_or_dec(num); } }
+                        if (pdo_index == 0) {
+                            int iv = parse_attr_int_range(begp, strchr(begp, '>') ? strchr(begp, '>') : endp, "Index");
+                            if (iv > 0) pdo_index = iv;
+                        }
+                    }
+                    ma_eni_pdo_entry_t *ents = NULL; unsigned int ecnt = 0;
+                    const char *ep = begp;
+                    while (1) {
+                        const char *ebeg = strncasestr(ep, (size_t)(endp - ep), "<Entry"); if (!ebeg) break;
+                        const char *etag_end = strchr(ebeg, '>'); if (!etag_end || etag_end > endp) break;
+                        const char *eend = strncasestr(etag_end, (size_t)(endp - etag_end), "</Entry>"); if (!eend) eend = etag_end;
+                        int e_index = 0, e_sub = 0, e_bit = 0;
+                        const char *it = strncasestr(ebeg, (size_t)(eend - ebeg), "<Index>");
+                        if (it) { const char *gt = strchr(it, '>'); const char *lt = gt ? strncasestr(gt+1, (size_t)(eend - (gt+1)), "</Index>") : NULL; if (gt && lt && lt > gt) { char num[64]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; e_index = parse_hex_or_dec(num); } }
+                        if (e_index == 0) { int av = parse_attr_int_range(ebeg, etag_end, "Index"); if (av > 0) e_index = av; }
+                        const char *st = strncasestr(ebeg, (size_t)(eend - ebeg), "<SubIndex>");
+                        if (st) { const char *gt = strchr(st, '>'); const char *lt = gt ? strncasestr(gt+1, (size_t)(eend - (gt+1)), "</SubIndex>") : NULL; if (gt && lt && lt > gt) { char num[32]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; e_sub = (int)strtol(num, NULL, 0); } }
+                        if (e_sub == 0) { int sv = parse_attr_int_range(ebeg, etag_end, "SubIndex"); if (sv >= 0) e_sub = sv; }
+                        const char *bt = strncasestr(ebeg, (size_t)(eend - ebeg), "<BitLen>");
+                        if (bt) { const char *gt = strchr(bt, '>'); const char *lt = gt ? strncasestr(gt+1, (size_t)(eend - (gt+1)), "</BitLen>") : NULL; if (gt && lt && lt > gt) { char num[32]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; e_bit = (int)strtol(num, NULL, 0); } }
+                        if (e_bit == 0) { int bv = parse_attr_int_range(ebeg, etag_end, "BitLen"); if (bv > 0) e_bit = bv; }
+                        ents = (ma_eni_pdo_entry_t *)realloc(ents, (ecnt + 1) * sizeof(*ents));
+                        ents[ecnt].index = (uint16_t)e_index; ents[ecnt].subindex = (uint8_t)e_sub; ents[ecnt].bitlen = (uint8_t)e_bit; ecnt++;
+                        ep = eend + 8;
+                    }
+                    ma_eni_pdo_t pdo_out; pdo_out.pdo_index = (uint16_t)pdo_index; pdo_out.entry_count = ecnt; pdo_out.entries = ents;
+                    int dir = kind;
+                    if (dir == 2) { if (pdo_index >= 0x1A00) dir = 1; else dir = 0; }
+                    if (dir == 0) { rx_pdos = (ma_eni_pdo_t *)realloc(rx_pdos, (rx_cnt + 1) * sizeof(*rx_pdos)); rx_pdos[rx_cnt++] = pdo_out; }
+                    else { tx_pdos = (ma_eni_pdo_t *)realloc(tx_pdos, (tx_cnt + 1) * sizeof(*tx_pdos)); tx_pdos[tx_cnt++] = pdo_out; }
+                    scan = endp + 7;
+                }
+
+                slaves = (ma_eni_slave_t *)realloc(slaves, (count + 1) * sizeof(*slaves));
+                slaves[count].vendor_id = v ? v : 0x000116c7;
+                slaves[count].product_code = pc ? pc : 0x003e0402;
+                slaves[count].position = ps;
+                slaves[count].rx_pdo_count = rx_cnt;
+                slaves[count].rx_pdos = rx_pdos;
+                slaves[count].tx_pdo_count = tx_cnt;
+                slaves[count].tx_pdos = tx_pdos;
+
                 if (positions) positions[count] = ps;
-                if (vendor_ids) vendor_ids[count] = v ? v : 0x000116c7;
-                if (product_codes) product_codes[count] = pc ? pc : 0x003e0402;
+                if (vendor_ids) vendor_ids[count] = slaves[count].vendor_id;
+                if (product_codes) product_codes[count] = slaves[count].product_code;
+
                 count++;
-                p = blk_end + 8;
+                sp = send + 8;
             }
         }
     }
-    /* 备选：ESI/EtherCATInfoList 的 <EtherCATInfo> 结构，按设备描述计数 */
-    if (count == 0) {
-        const char *p = buf; size_t remaining = rd; uint16_t idx = 0;
-        while (idx < max_slaves) {
-            const char *info = strncasestr(p, remaining, "<EtherCATInfo>"); if (!info) break;
-            const char *end = strncasestr(info, (size_t)(rd - (info - buf)), "</EtherCATInfo>"); if (!end) end = buf + rd;
-            uint32_t v = 0, pc = 0; uint16_t ps = idx;
-            const char *vend = strncasestr(info, (size_t)(end - info), "<Id>");
-            if (vend) { const char *gt = strchr(vend, '>'); const char *lt = gt ? strchr(gt+1, '<') : NULL; if (gt && lt && lt > gt) { char num[32]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; v = (uint32_t)strtoul(num, NULL, 10); } }
-            const char *type = strncasestr(info, (size_t)(end - info), "ProductCode");
-            if (type) { const char *eq = strchr(type, '='); if (eq && eq < end) { const char *vv = eq + 1; while (*vv==' '||*vv=='"'||*vv=='#') ++vv; if (*vv=='x' || *vv=='X') ++vv; pc = (uint32_t)strtoul(vv, NULL, 16); } }
-            if (positions) positions[idx] = ps;
-            if (vendor_ids) vendor_ids[idx] = v ? v : 0x000116c7;
-            if (product_codes) product_codes[idx] = pc ? pc : 0x003e0402;
-            idx++;
-            p = end + 15; remaining = rd - (size_t)(p - buf);
+
+    /* 解析 <EtherCATInfo> 布局 */
+    while (count < max_slaves) {
+        const char *info = strncasestr(p, remaining, "<EtherCATInfo>"); if (!info) break;
+        const char *end = strncasestr(info, (size_t)(rd - (info - buf)), "</EtherCATInfo>"); if (!end) end = buf + rd;
+        uint32_t v = 0, pc = 0; uint16_t ps = count;
+        const char *vend = strncasestr(info, (size_t)(end - info), "<Id>");
+        if (vend) { const char *gt = strchr(vend, '>'); const char *lt = gt ? strchr(gt+1, '<') : NULL; if (gt && lt && lt > gt) { char num[32]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; v = (uint32_t)strtoul(num, NULL, 10); } }
+        const char *type = strncasestr(info, (size_t)(end - info), "ProductCode");
+        if (type) { const char *eq = strchr(type, '='); if (eq && eq < end) { const char *vv = eq + 1; while (*vv==' '||*vv=='"'||*vv=='#') ++vv; if (*vv=='x' || *vv=='X') ++vv; pc = (uint32_t)strtoul(vv, NULL, 16); } }
+
+        ma_eni_pdo_t *rx_pdos = NULL; unsigned int rx_cnt = 0;
+        ma_eni_pdo_t *tx_pdos = NULL; unsigned int tx_cnt = 0;
+
+        const char *scan = info;
+        while (1) {
+            const char *rx = strncasestr(scan, (size_t)(end - scan), "<RxPdo");
+            const char *tx = strncasestr(scan, (size_t)(end - scan), "<TxPdo");
+            if (!rx && !tx) break;
+            int is_rx = 0; const char *pdo_beg = NULL;
+            if (rx && (!tx || rx < tx)) { is_rx = 1; pdo_beg = rx; }
+            else { is_rx = 0; pdo_beg = tx; }
+            const char *pdo_end = NULL;
+            if (is_rx) pdo_end = strncasestr(pdo_beg, (size_t)(end - pdo_beg), "</RxPdo>"); else pdo_end = strncasestr(pdo_beg, (size_t)(end - pdo_beg), "</TxPdo>");
+            if (!pdo_end) break;
+            int pdo_index = 0x0000;
+            {
+                const char *idx_tag = strncasestr(pdo_beg, (size_t)(pdo_end - pdo_beg), "<Index>");
+                if (idx_tag) { const char *gt = strchr(idx_tag, '>'); const char *lt = strncasestr(gt ? gt+1 : pdo_beg, (size_t)(pdo_end - (gt ? gt+1 : pdo_beg)), "</Index>"); if (gt && lt && lt > gt) { char num[64]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; pdo_index = parse_hex_or_dec(num); } }
+            }
+            ma_eni_pdo_entry_t *ents = NULL; unsigned int ecnt = 0;
+            const char *ep = pdo_beg;
+            while (1) {
+                const char *ebeg = strncasestr(ep, (size_t)(pdo_end - ep), "<Entry>"); if (!ebeg) break;
+                const char *eend = strncasestr(ebeg, (size_t)(pdo_end - ebeg), "</Entry>"); if (!eend) break;
+                int e_index = 0, e_sub = 0, e_bit = 0;
+                const char *it = strncasestr(ebeg, (size_t)(eend - ebeg), "<Index>"); if (it) { const char *gt = strchr(it, '>'); const char *lt = strncasestr(gt ? gt+1 : ebeg, (size_t)(eend - (gt ? gt+1 : ebeg)), "</Index>"); if (gt && lt && lt > gt) { char num[64]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; e_index = parse_hex_or_dec(num); } }
+                const char *st = strncasestr(ebeg, (size_t)(eend - ebeg), "<SubIndex>"); if (st) { const char *gt = strchr(st, '>'); const char *lt = strncasestr(gt ? gt+1 : ebeg, (size_t)(eend - (gt ? gt+1 : ebeg)), "</SubIndex>"); if (gt && lt && lt > gt) { char num[32]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; e_sub = (int)strtol(num, NULL, 0); } }
+                const char *bt = strncasestr(ebeg, (size_t)(eend - ebeg), "<BitLen>"); if (bt) { const char *gt = strchr(bt, '>'); const char *lt = strncasestr(gt ? gt+1 : ebeg, (size_t)(eend - (gt ? gt+1 : ebeg)), "</BitLen>"); if (gt && lt && lt > gt) { char num[32]; size_t n = (size_t)(lt - (gt+1)); if (n > sizeof(num)-1) n = sizeof(num)-1; memcpy(num, gt+1, n); num[n] = '\0'; e_bit = (int)strtol(num, NULL, 0); } }
+                ents = (ma_eni_pdo_entry_t *)realloc(ents, (ecnt + 1) * sizeof(*ents));
+                ents[ecnt].index = (uint16_t)e_index; ents[ecnt].subindex = (uint8_t)e_sub; ents[ecnt].bitlen = (uint8_t)e_bit; ecnt++;
+                ep = eend + 8;
+            }
+            ma_eni_pdo_t pdo; pdo.pdo_index = (uint16_t)pdo_index; pdo.entry_count = ecnt; pdo.entries = ents;
+            if (is_rx) { rx_pdos = (ma_eni_pdo_t *)realloc(rx_pdos, (rx_cnt + 1) * sizeof(*rx_pdos)); rx_pdos[rx_cnt++] = pdo; }
+            else { tx_pdos = (ma_eni_pdo_t *)realloc(tx_pdos, (tx_cnt + 1) * sizeof(*tx_pdos)); tx_pdos[tx_cnt++] = pdo; }
+            scan = pdo_end + 7;
         }
-        count = idx;
+
+        slaves = (ma_eni_slave_t *)realloc(slaves, (count + 1) * sizeof(*slaves));
+        slaves[count].vendor_id = v ? v : 0x000116c7;
+        slaves[count].product_code = pc ? pc : 0x003e0402;
+        slaves[count].position = ps;
+        slaves[count].rx_pdo_count = rx_cnt;
+        slaves[count].rx_pdos = rx_pdos;
+        slaves[count].tx_pdo_count = tx_cnt;
+        slaves[count].tx_pdos = tx_pdos;
+
+        if (positions) positions[count] = ps;
+        if (vendor_ids) vendor_ids[count] = slaves[count].vendor_id;
+        if (product_codes) product_codes[count] = slaves[count].product_code;
+
+        count++;
+        p = end + 15; remaining = rd - (size_t)(p - buf);
     }
+
+    if (out_slaves) *out_slaves = slaves; else {
+        if (slaves) {
+            for (uint16_t i = 0; i < count; ++i) {
+                for (unsigned int j = 0; j < slaves[i].rx_pdo_count; ++j) free(slaves[i].rx_pdos[j].entries);
+                for (unsigned int j = 0; j < slaves[i].tx_pdo_count; ++j) free(slaves[i].tx_pdos[j].entries);
+                free(slaves[i].rx_pdos);
+                free(slaves[i].tx_pdos);
+            }
+            free(slaves);
+        }
+    }
+
     free(buf);
     *out_count = count;
     return MA_OK;
+}
+
+EXTERNFUNC void motor_api_free_eni_slaves(ma_eni_slave_t *slaves, uint16_t count) {
+    if (!slaves) return;
+    for (uint16_t i = 0; i < count; ++i) {
+        for (unsigned int j = 0; j < slaves[i].rx_pdo_count; ++j) free(slaves[i].rx_pdos[j].entries);
+        for (unsigned int j = 0; j < slaves[i].tx_pdo_count; ++j) free(slaves[i].tx_pdos[j].entries);
+        free(slaves[i].rx_pdos);
+        free(slaves[i].tx_pdos);
+    }
+    free(slaves);
 }
 
 /*
@@ -379,8 +537,9 @@ EXTERNFUNC ma_status_t motor_api_create(const char *eni_path,
     h->domain = ecrt_master_create_domain(h->master); if (!h->domain) { ecrt_release_master(h->master); free(h); return MA_ERR_INIT; }
 
     uint16_t cnt = 0; uint32_t vids[MA_MAX_SLAVES] = {0}, prods[MA_MAX_SLAVES] = {0}; uint16_t poss[MA_MAX_SLAVES] = {0};
+    ma_eni_slave_t *eni_slaves = NULL;
     if (eni_path) {
-        ma_status_t rc = motor_api_read_eni(eni_path, vids, prods, poss, MA_MAX_SLAVES, &cnt);
+        ma_status_t rc = motor_api_read_eni(eni_path, vids, prods, poss, MA_MAX_SLAVES, &cnt, &eni_slaves);
         if (rc != MA_OK || cnt == 0) {
             fprintf(stderr, "[ERROR] ENI parse failed or zero slaves: path=%s rc=%d cnt=%u\n", eni_path, rc, cnt);
             ecrt_release_master(h->master); free(h); return MA_ERR_CONFIG;
@@ -392,10 +551,9 @@ EXTERNFUNC ma_status_t motor_api_create(const char *eni_path,
     }
     h->slave_count = cnt; for (uint16_t i=0;i<cnt;i++){ h->vendor_id[i]=vids[i]; h->product_code[i]=prods[i]; h->position[i]=poss[i]; }
 
-    /* 循环配置从站，注意 ecrt_master_slave_config 参数顺序：alias=0, position, vendor_id, product_code */
     for (uint16_t i = 0; i < cnt; ++i) {
         h->sc[i] = ecrt_master_slave_config(h->master, 0, poss[i], vids[i], prods[i]);
-        if (!h->sc[i]) { ecrt_release_master(h->master); free(h); return MA_ERR_INIT; }
+        if (!h->sc[i]) { if (eni_slaves) motor_api_free_eni_slaves(eni_slaves, cnt); ecrt_release_master(h->master); free(h); return MA_ERR_INIT; }
         (void)ecrt_slave_config_sdo8(h->sc[i], 0x60C2, 2, (uint8_t)-3);
         uint8_t period_ms = (uint8_t)(cycle_us / 1000U); (void)ecrt_slave_config_sdo8(h->sc[i], 0x60C2, 1, period_ms);
         (void)ecrt_slave_config_sdo32(h->sc[i], 0x6081, 0, 100000);
@@ -403,31 +561,81 @@ EXTERNFUNC ma_status_t motor_api_create(const char *eni_path,
         (void)ecrt_slave_config_sdo32(h->sc[i], 0x6084, 0, 50000);
     }
 
-    /* PDO 映射：与 test3.c 保持一致，涵盖控制字/模式/位置/状态等对象 */
-    static ec_pdo_entry_info_t device_pdo_entries[] = {
-        {0x6040, 0x00, 16}, {0x6060, 0x00, 8}, {0x607A, 0x00, 32}, {0x60B8, 0x00, 16},
-        {0x603F, 0x00, 16}, {0x6041, 0x00, 16}, {0x6064, 0x00, 32}, {0x6061, 0x00, 8}, {0x60B9, 0x00, 16}, {0x60BA, 0x00, 32}, {0x60F4, 0x00, 32}, {0x60FD, 0x00, 32}, {0x213F, 0x00, 16},
-    };
-    static ec_pdo_info_t device_pdos[] = {
-        {0x1600, 4, device_pdo_entries + 0},
-        {0x1A00, 9, device_pdo_entries + 4},
-    };
-    /* 同步管理：0/1 空；2 输出；3 输入；看门狗按需要启用 */
-    static ec_sync_info_t device_syncs[] = {
-        {0, EC_DIR_OUTPUT, 0, NULL, EC_WD_DISABLE},
-        {1, EC_DIR_INPUT, 0, NULL, EC_WD_DISABLE},
-        {2, EC_DIR_OUTPUT, 1, device_pdos + 0, EC_WD_ENABLE},
-        {3, EC_DIR_INPUT, 1, device_pdos + 1, EC_WD_DISABLE},
-        {0xFF, (ec_direction_t)0, 0, NULL, EC_WD_DISABLE}
-    };
+    if (eni_slaves) {
+        for (uint16_t i = 0; i < cnt; ++i) {
+            unsigned int rx_n = eni_slaves[i].rx_pdo_count;
+            unsigned int tx_n = eni_slaves[i].tx_pdo_count;
+            ec_pdo_info_t *rx_infos = rx_n ? (ec_pdo_info_t *)calloc(rx_n, sizeof(*rx_infos)) : NULL;
+            ec_pdo_info_t *tx_infos = tx_n ? (ec_pdo_info_t *)calloc(tx_n, sizeof(*tx_infos)) : NULL;
+            ec_pdo_entry_info_t **rx_entries = rx_n ? (ec_pdo_entry_info_t **)calloc(rx_n, sizeof(*rx_entries)) : NULL;
+            ec_pdo_entry_info_t **tx_entries = tx_n ? (ec_pdo_entry_info_t **)calloc(tx_n, sizeof(*tx_entries)) : NULL;
 
-    /* 注册 PDO 映射到从站 */
-    for (uint16_t i = 0; i < cnt; ++i) {
-        if (ecrt_slave_config_pdos(h->sc[i], EC_END, device_syncs)) { ecrt_release_master(h->master); free(h); return MA_ERR_CONFIG; }
+            for (unsigned int p = 0; p < rx_n; ++p) {
+                unsigned int ecnt = eni_slaves[i].rx_pdos[p].entry_count;
+                rx_entries[p] = ecnt ? (ec_pdo_entry_info_t *)calloc(ecnt, sizeof(*rx_entries[p])) : NULL;
+                for (unsigned int e = 0; e < ecnt; ++e) {
+                    rx_entries[p][e].index = eni_slaves[i].rx_pdos[p].entries[e].index;
+                    rx_entries[p][e].subindex = eni_slaves[i].rx_pdos[p].entries[e].subindex;
+                    rx_entries[p][e].bit_length = eni_slaves[i].rx_pdos[p].entries[e].bitlen;
+                }
+                rx_infos[p].index = eni_slaves[i].rx_pdos[p].pdo_index;
+                rx_infos[p].entries = rx_entries[p];
+                rx_infos[p].n_entries = ecnt;
+            }
+            for (unsigned int p = 0; p < tx_n; ++p) {
+                unsigned int ecnt = eni_slaves[i].tx_pdos[p].entry_count;
+                tx_entries[p] = ecnt ? (ec_pdo_entry_info_t *)calloc(ecnt, sizeof(*tx_entries[p])) : NULL;
+                for (unsigned int e = 0; e < ecnt; ++e) {
+                    tx_entries[p][e].index = eni_slaves[i].tx_pdos[p].entries[e].index;
+                    tx_entries[p][e].subindex = eni_slaves[i].tx_pdos[p].entries[e].subindex;
+                    tx_entries[p][e].bit_length = eni_slaves[i].tx_pdos[p].entries[e].bitlen;
+                }
+                tx_infos[p].index = eni_slaves[i].tx_pdos[p].pdo_index;
+                tx_infos[p].entries = tx_entries[p];
+                tx_infos[p].n_entries = ecnt;
+            }
+
+            ec_sync_info_t syncs[] = {
+                {0, EC_DIR_OUTPUT, 0, NULL, EC_WD_DISABLE},
+                {1, EC_DIR_INPUT, 0, NULL, EC_WD_DISABLE},
+                {2, EC_DIR_OUTPUT, (uint8_t)rx_n, rx_infos, EC_WD_ENABLE},
+                {3, EC_DIR_INPUT, (uint8_t)tx_n, tx_infos, EC_WD_DISABLE},
+                {0xFF, (ec_direction_t)0, 0, NULL, EC_WD_DISABLE}
+            };
+
+            if (ecrt_slave_config_pdos(h->sc[i], EC_END, syncs)) {
+                for (unsigned int p = 0; p < rx_n; ++p) free(rx_entries[p]);
+                for (unsigned int p = 0; p < tx_n; ++p) free(tx_entries[p]);
+                free(rx_entries); free(tx_entries); free(rx_infos); free(tx_infos);
+                motor_api_free_eni_slaves(eni_slaves, cnt);
+                ecrt_release_master(h->master); free(h); return MA_ERR_CONFIG;
+            }
+            for (unsigned int p = 0; p < rx_n; ++p) free(rx_entries[p]);
+            for (unsigned int p = 0; p < tx_n; ++p) free(tx_entries[p]);
+            free(rx_entries); free(tx_entries); free(rx_infos); free(tx_infos);
+        }
+    } else {
+        static ec_pdo_entry_info_t device_pdo_entries[] = {
+            {0x6040, 0x00, 16}, {0x6060, 0x00, 8}, {0x607A, 0x00, 32}, {0x60B8, 0x00, 16},
+            {0x603F, 0x00, 16}, {0x6041, 0x00, 16}, {0x6064, 0x00, 32}, {0x6061, 0x00, 8}, {0x60B9, 0x00, 16}, {0x60BA, 0x00, 32}, {0x60F4, 0x00, 32}, {0x60FD, 0x00, 32}, {0x213F, 0x00, 16},
+        };
+        static ec_pdo_info_t device_pdos[] = {
+            {0x1600, 4, device_pdo_entries + 0},
+            {0x1A00, 9, device_pdo_entries + 4},
+        };
+        static ec_sync_info_t device_syncs[] = {
+            {0, EC_DIR_OUTPUT, 0, NULL, EC_WD_DISABLE},
+            {1, EC_DIR_INPUT, 0, NULL, EC_WD_DISABLE},
+            {2, EC_DIR_OUTPUT, 1, device_pdos + 0, EC_WD_ENABLE},
+            {3, EC_DIR_INPUT, 1, device_pdos + 1, EC_WD_DISABLE},
+            {0xFF, (ec_direction_t)0, 0, NULL, EC_WD_DISABLE}
+        };
+        for (uint16_t i = 0; i < cnt; ++i) {
+            if (ecrt_slave_config_pdos(h->sc[i], EC_END, device_syncs)) { if (eni_slaves) motor_api_free_eni_slaves(eni_slaves, cnt); ecrt_release_master(h->master); free(h); return MA_ERR_CONFIG; }
+        }
     }
 
-    /* 域内 PDO 条目注册，建立偏移映射便于周期读写 */
-    ec_pdo_entry_reg_t regs[MA_MAX_SLAVES * 14 + 1]; memset(regs, 0, sizeof(regs)); size_t r = 0;
+    ec_pdo_entry_reg_t regs[MA_MAX_SLAVES * 24 + 1]; memset(regs, 0, sizeof(regs)); size_t r = 0;
     for (uint16_t i = 0; i < cnt; ++i) {
         regs[r++] = (ec_pdo_entry_reg_t){ .alias = 0, .position = h->position[i], .vendor_id = h->vendor_id[i], .product_code = h->product_code[i], .index = 0x6040, .subindex = 0x00, .offset = &h->out[i].controlWord };
         regs[r++] = (ec_pdo_entry_reg_t){ .alias = 0, .position = h->position[i], .vendor_id = h->vendor_id[i], .product_code = h->product_code[i], .index = 0x6060, .subindex = 0x00, .offset = &h->out[i].workModeOut };
@@ -444,7 +652,7 @@ EXTERNFUNC ma_status_t motor_api_create(const char *eni_path,
         regs[r++] = (ec_pdo_entry_reg_t){ .alias = 0, .position = h->position[i], .vendor_id = h->vendor_id[i], .product_code = h->product_code[i], .index = 0x213F, .subindex = 0x00, .offset = &h->in[i].servoErrorCode };
     }
     regs[r] = (ec_pdo_entry_reg_t){0};
-    if (ecrt_domain_reg_pdo_entry_list(h->domain, regs)) { ecrt_release_master(h->master); free(h); return MA_ERR_CONFIG; }
+    if (ecrt_domain_reg_pdo_entry_list(h->domain, regs)) { if (eni_slaves) motor_api_free_eni_slaves(eni_slaves, cnt); ecrt_release_master(h->master); free(h); return MA_ERR_CONFIG; }
 
     /* DC 配置：选 0 号从站为参考时钟，统一 Sync0 周期 */
     ecrt_master_select_reference_clock(h->master, h->sc[0]);
@@ -454,7 +662,43 @@ EXTERNFUNC ma_status_t motor_api_create(const char *eni_path,
     h->domain_pd = ecrt_domain_data(h->domain); if (!h->domain_pd) { ecrt_release_master(h->master); free(h); return MA_ERR_INIT; }
     h->barrier_armed = 0; h->barrier_start_ns = 0; h->barrier_delay_ns = 1000000000ULL; h->motion_started = 0;
     memset(h->seen_enabled, 0, sizeof(h->seen_enabled));
-    *out_handle = (struct motor_api_handle *)h; if (out_slave_count) *out_slave_count = cnt;
+    /* 创建后打印已注册 PDO 列表 */
+    for (uint16_t i = 0; i < cnt; ++i) {
+        printf("[PDO] Slave position=%u vid=0x%08X pid=0x%08X\n", h->position[i], h->vendor_id[i], h->product_code[i]);
+        if (eni_slaves) {
+            printf("  Rx:");
+            unsigned int rx_n = eni_slaves[i].rx_pdo_count;
+            for (unsigned int p = 0; p < rx_n; ++p) {
+                uint16_t pidx = eni_slaves[i].rx_pdos[p].pdo_index;
+                unsigned int ecnt = eni_slaves[i].rx_pdos[p].entry_count;
+                printf(" [0x%04X]", pidx);
+                for (unsigned int e = 0; e < ecnt; ++e) {
+                    uint16_t ix = eni_slaves[i].rx_pdos[p].entries[e].index;
+                    uint8_t  si = eni_slaves[i].rx_pdos[p].entries[e].subindex;
+                    uint8_t  bl = eni_slaves[i].rx_pdos[p].entries[e].bitlen;
+                    printf(" 0x%04X:%u %u", ix, si, bl);
+                }
+            }
+            printf("\n  Tx:");
+            unsigned int tx_n = eni_slaves[i].tx_pdo_count;
+            for (unsigned int p = 0; p < tx_n; ++p) {
+                uint16_t pidx = eni_slaves[i].tx_pdos[p].pdo_index;
+                unsigned int ecnt = eni_slaves[i].tx_pdos[p].entry_count;
+                printf(" [0x%04X]", pidx);
+                for (unsigned int e = 0; e < ecnt; ++e) {
+                    uint16_t ix = eni_slaves[i].tx_pdos[p].entries[e].index;
+                    uint8_t  si = eni_slaves[i].tx_pdos[p].entries[e].subindex;
+                    uint8_t  bl = eni_slaves[i].tx_pdos[p].entries[e].bitlen;
+                    printf(" 0x%04X:%u %u", ix, si, bl);
+                }
+            }
+            printf("\n");
+        } else {
+            printf("  Rx: 0x6040:0 16, 0x6060:0 8, 0x607A:0 32, 0x60B8:0 16\n");
+            printf("  Tx: 0x6041:0 16, 0x6064:0 32, 0x6061:0 8, 0x603F:0 16, 0x60F4:0 32, 0x60FD:0 32, 0x60B9:0 16, 0x60BA:0 32, 0x213F:0 16\n");
+        }
+    }
+    *out_handle = (struct motor_api_handle *)h; if (out_slave_count) *out_slave_count = cnt; if (eni_slaves) motor_api_free_eni_slaves(eni_slaves, cnt);
     return MA_OK;
 }
 
